@@ -67,6 +67,9 @@ void GpuAdapter::UpdateDisplayConfig(void)
                                                           NULL))))
     {
 
+        /* QDC_ALL_PATHS also lists the inactive paths, with the same source (GDI) name: take the
+         * active path of our source, and the first named one only when none is active. */
+        int firstMatch = -1;
         for (UINT PathIdx = 0; PathIdx < GetNumbersOfPathArrayElements(); ++PathIdx)
         {
             DISPLAYCONFIG_SOURCE_DEVICE_NAME SourceName = {};
@@ -79,10 +82,22 @@ void GpuAdapter::UpdateDisplayConfig(void)
             {
                 if (wcscmp(m_DeviceName.c_str(), SourceName.viewGdiDeviceName) == 0)
                 {
-                    m_Index = PathIdx;
-                    break;
+                    if (firstMatch < 0)
+                    {
+                        firstMatch = (int)PathIdx;
+                    }
+                    if (m_pDisplayPathInfo[PathIdx].flags & DISPLAYCONFIG_PATH_ACTIVE)
+                    {
+                        m_Index = PathIdx;
+                        firstMatch = -2; /* found an active one */
+                        break;
+                    }
                 }
             }
+        }
+        if (firstMatch >= 0)
+        {
+            m_Index = (UINT)firstMatch;
         }
     }
 };
