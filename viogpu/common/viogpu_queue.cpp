@@ -372,7 +372,9 @@ BOOLEAN CtrlQueue::GetEdidInfo(PGPU_VBUFFER buf, UINT id, PBYTE edid)
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
     PGPU_CMD_GET_EDID cmd = (PGPU_CMD_GET_EDID)buf->buf;
     PGPU_RESP_EDID resp = (PGPU_RESP_EDID)buf->resp_buf;
-    PUCHAR resp_edit = (PUCHAR)(resp->edid + (ULONGLONG)id * EDID_V1_BLOCK_SIZE);
+    /* GET_EDID answers with the EDID of the scanout asked for, from byte 0: indexing by scanout
+     * read past the 1 KB response for every scanout >= 8 and fed garbage modes to the mode list. */
+    PUCHAR resp_edit = (PUCHAR)(resp->edid);
     if (resp->hdr.type != VIRTIO_GPU_RESP_OK_EDID)
     {
         DbgPrint(TRACE_LEVEL_VERBOSE, (" %s type = %x: disabled\n", __FUNCTION__, resp->hdr.type));

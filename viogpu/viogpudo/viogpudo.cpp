@@ -3256,7 +3256,9 @@ BOOLEAN VioGpuAdapter::GetEdids(void)
 
     PGPU_VBUFFER vbuf = NULL;
 
-    for (UINT32 i = 0; i < m_u32NumScanouts; i++)
+    /* One display (scanout 0) is all this driver drives; asking every scanout let the last,
+     * nonexistent one overwrite the real EDID. */
+    for (UINT32 i = 0; i < m_u32NumScanouts && i < 1; i++)
     {
         if (m_CtrlQueue.AskEdidInfo(&vbuf, i) && m_CtrlQueue.GetEdidInfo(vbuf, i, m_EDIDs))
         {
