@@ -350,6 +350,14 @@ void GpuAdapter::SyncResolution(void)
         SetResolution(&custom);
         UpdateDisplayConfig(); /* paths and modes after the mode change */
         ApplyHostScale();
+        /* A display-only driver gets dirty rects only; after a mode or scale change parts of the new
+         * framebuffer would keep old content until something redraws them. Ask everything to repaint,
+         * once right away and once after Explorer has relaid out for the new scale. */
+        for (DWORD delay : {700, 2500})
+        {
+            Sleep(delay);
+            RedrawWindow(NULL, NULL, NULL, RDW_INVALIDATE | RDW_ERASE | RDW_FRAME | RDW_ALLCHILDREN | RDW_UPDATENOW);
+        }
     }
 }
 
