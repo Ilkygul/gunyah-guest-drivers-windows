@@ -88,6 +88,13 @@ static BOOLEAN StageInRdmaSlot(PGPU_VBUFFER buf, VirtIOBufferDescriptor *sg, UIN
         sg[o].length = buf->resp_size;
         i++;
     }
+    if (o + i == 0)
+    {
+        /* nothing device-visible: crosvm rejects a zero-length chain */
+        VioGpuRdmaSlotFree(slot);
+        DbgPrint(TRACE_LEVEL_ERROR, ("rdma: empty buffer not queued\n"));
+        return FALSE;
+    }
     buf->dma_slot = slot;
     *outcnt = o;
     *incnt = i;
