@@ -37,9 +37,13 @@
 #elif defined(VIOGPU_REGLOG)
 /* pVM test build: no WPP; warnings and errors go to HKLM\SYSTEM\CurrentControlSet\Services\VioGpuDod\DbgLog */
 void VioGpuRegLog(const char *fmt, ...);
+__forceinline bool VioGpuRegLogOn(int level)
+{
+    return level <= TRACE_LEVEL_WARNING;
+}
 #define DbgPrint(Level, MSG)                                                                                           \
     {                                                                                                                  \
-        if ((Level) <= TRACE_LEVEL_WARNING)                                                                            \
+        if (VioGpuRegLogOn(Level))                                                                                     \
             VioGpuRegLog MSG;                                                                                          \
     }
 #define VioGpuDbgBreak() {}
