@@ -151,7 +151,7 @@
       <AdditionalLibraryDirectories>..\..\VirtIO\$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);$(DDK_INC_PATH);$(SDK_INC_PATH);..\common;..\shared;..\..\VirtIO;..\viogpudo\;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);$(DDK_INC_PATH);$(SDK_INC_PATH);..\common;..\shared;..\..\VirtIO;..\viogpudo\;..\..\rdmapool;</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>VIOGPU_DOD=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WppEnabled>true</WppEnabled>
       <WppScanConfigurationData>..\viogpudo\trace.h</WppScanConfigurationData>
@@ -169,7 +169,7 @@
       <AdditionalLibraryDirectories>..\..\VirtIO\$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);$(DDK_INC_PATH);$(SDK_INC_PATH);..\common;..\shared;..\..\VirtIO;..\viogpudo\;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);$(DDK_INC_PATH);$(SDK_INC_PATH);..\common;..\shared;..\..\VirtIO;..\viogpudo\;..\..\rdmapool;</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>VIOGPU_DOD=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WppEnabled>true</WppEnabled>
       <WppScanConfigurationData>..\viogpudo\trace.h</WppScanConfigurationData>
@@ -187,7 +187,7 @@
       <AdditionalLibraryDirectories>..\..\VirtIO\$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);$(DDK_INC_PATH);$(SDK_INC_PATH);..\common;..\shared;..\..\VirtIO;..\viogpudo\;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);$(DDK_INC_PATH);$(SDK_INC_PATH);..\common;..\shared;..\..\VirtIO;..\viogpudo\;..\..\rdmapool;</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>VIOGPU_DOD=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WppEnabled>true</WppEnabled>
       <WppScanConfigurationData>trace.h</WppScanConfigurationData>
@@ -200,7 +200,7 @@
       <AdditionalLibraryDirectories>..\..\VirtIO\$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);$(DDK_INC_PATH);$(SDK_INC_PATH);..\common;..\shared;..\..\VirtIO;..\viogpudo\;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);$(DDK_INC_PATH);$(SDK_INC_PATH);..\common;..\shared;..\..\VirtIO;..\viogpudo\;..\..\rdmapool;</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>VIOGPU_DOD=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WppEnabled>true</WppEnabled>
       <WppScanConfigurationData>trace.h</WppScanConfigurationData>
@@ -221,7 +221,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);$(DDK_INC_PATH);$(SDK_INC_PATH);..\common;..\shared;..\..\VirtIO;..\viogpudo\;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);$(DDK_INC_PATH);$(SDK_INC_PATH);..\common;..\shared;..\..\VirtIO;..\viogpudo\;..\..\rdmapool;</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>VIOGPU_DOD=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WppEnabled>true</WppEnabled>
       <WppScanConfigurationData>trace.h</WppScanConfigurationData>
@@ -235,7 +235,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win11 Release|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);$(DDK_INC_PATH);$(SDK_INC_PATH);..\common;..\shared;..\..\VirtIO;..\viogpudo\;</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);$(DDK_INC_PATH);$(SDK_INC_PATH);..\common;..\shared;..\..\VirtIO;..\viogpudo\;..\..\rdmapool;</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>VIOGPU_DOD=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WppEnabled>true</WppEnabled>
       <WppScanConfigurationData>trace.h</WppScanConfigurationData>
@@ -261,6 +261,8 @@
     <ClCompile Include="..\common\viogpu_idr.cpp" />
     <ClCompile Include="..\common\viogpu_pci.cpp" />
     <ClCompile Include="..\common\viogpu_queue.cpp" />
+    <ClCompile Include="..\common\viogpu_rdma.cpp" />
+    <ClCompile Include="..\..\rdmapool\rdmaclient.c" />
     <ClCompile Include="driver.cpp" />
     <ClCompile Include="viogpudo.cpp" />
     <ClCompile Include="..\common\baseobj.cpp" />

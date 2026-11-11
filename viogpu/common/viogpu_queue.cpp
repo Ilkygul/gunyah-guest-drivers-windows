@@ -29,6 +29,7 @@
 
 #include "viogpu_queue.h"
 #include "baseobj.h"
+#include "viogpu_rdma.h"
 #if !DBG
 #include "viogpu_queue.tmh"
 #endif
@@ -42,6 +43,71 @@ static BOOLEAN BuildSGElement(VirtIOBufferDescriptor *sg, PVOID buf, ULONG size)
         return TRUE;
     }
     return FALSE;
+}
+
+/* Protected VM: copy command (+data) into a pool slot and point the descriptors there.
+ * Returns the number of out/in descriptors through *outcnt/*incnt; FALSE when no slot. */
+static BOOLEAN StageInRdmaSlot(PGPU_VBUFFER buf, VirtIOBufferDescriptor *sg, UINT *outcnt, UINT *incnt)
+{
+    if ((ULONG)buf->size > VIOGPU_RDMA_SLOT_CMD_MAX || buf->data_size > VIOGPU_RDMA_SLOT_DATA_MAX ||
+        (ULONG)buf->resp_size > VIOGPU_RDMA_SLOT_RESP_MAX)
+    {
+        DbgPrintEx(DPFLTR_IHVVIDEO_ID,
+                   DPFLTR_ERROR_LEVEL,
+                   "viogpu rdma: buffer too big for a slot (%d/%u/%d)\n",
+                   buf->size,
+                   buf->data_size,
+                   buf->resp_size);
+        return FALSE;
+    }
+    PUCHAR slot = (PUCHAR)VioGpuRdmaSlotAlloc();
+    if (slot == NULL)
+    {
+        return FALSE;
+    }
+    PHYSICAL_ADDRESS pa;
+    VioGpuRdmaVaToPa(slot, &pa);
+    UINT o = 0, i = 0;
+    if (buf->size)
+    {
+        RtlCopyMemory(slot + VIOGPU_RDMA_SLOT_CMD_OFF, buf->buf, buf->size);
+        sg[o].physAddr.QuadPart = pa.QuadPart + VIOGPU_RDMA_SLOT_CMD_OFF;
+        sg[o].length = buf->size;
+        o++;
+    }
+    if (buf->data_size)
+    {
+        RtlCopyMemory(slot + VIOGPU_RDMA_SLOT_DATA_OFF, buf->data_buf, buf->data_size);
+        sg[o].physAddr.QuadPart = pa.QuadPart + VIOGPU_RDMA_SLOT_DATA_OFF;
+        sg[o].length = buf->data_size;
+        o++;
+    }
+    if (buf->resp_size)
+    {
+        RtlZeroMemory(slot + VIOGPU_RDMA_SLOT_RESP_OFF, buf->resp_size);
+        sg[o].physAddr.QuadPart = pa.QuadPart + VIOGPU_RDMA_SLOT_RESP_OFF;
+        sg[o].length = buf->resp_size;
+        i++;
+    }
+    buf->dma_slot = slot;
+    *outcnt = o;
+    *incnt = i;
+    return TRUE;
+}
+
+/* Protected VM: copy the response back out of the slot and give the slot back. */
+static void UnstageRdmaSlot(PGPU_VBUFFER buf)
+{
+    if (buf == NULL || buf->dma_slot == NULL)
+    {
+        return;
+    }
+    if (buf->resp_size && buf->resp_buf)
+    {
+        RtlCopyMemory(buf->resp_buf, (PUCHAR)buf->dma_slot + VIOGPU_RDMA_SLOT_RESP_OFF, buf->resp_size);
+    }
+    VioGpuRdmaSlotFree(buf->dma_slot);
+    buf->dma_slot = NULL;
 }
 
 static void NotifyEventCompleteCB(void *ctx)
@@ -517,6 +583,19 @@ UINT CtrlQueue::QueueBuffer(PGPU_VBUFFER buf)
         return 0;
     }
 
+    if (VioGpuRdmaActive())
+    {
+        if (!StageInRdmaSlot(buf, sg, &outcnt, &incnt))
+        {
+            return 0;
+        }
+        Lock(&SavedIrql);
+        ret = AddBuf(&sg[0], outcnt, incnt, buf, NULL, 0);
+        Kick();
+        Unlock(SavedIrql);
+        return ret;
+    }
+
     if (BuildSGElement(&sg[outcnt + incnt], (PVOID)buf->buf, buf->size))
     {
         outcnt++;
@@ -580,6 +659,7 @@ PGPU_VBUFFER CtrlQueue::DequeueBuffer(_Out_ UINT *len)
     Lock(&SavedIrql);
     buf = (PGPU_VBUFFER)GetBuf(len);
     Unlock(SavedIrql);
+    UnstageRdmaSlot(buf);
     if (buf == NULL)
     {
         *len = 0;
@@ -850,6 +930,8 @@ VioGpuMemSegment::VioGpuMemSegment(void)
     m_pMdl = NULL;
     m_bSystemMemory = FALSE;
     m_bMapped = FALSE;
+    m_bRdma = FALSE;
+    m_RdmaPa.QuadPart = 0;
     m_Size = 0;
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
@@ -876,6 +958,34 @@ BOOLEAN VioGpuMemSegment::Init(_In_ UINT size, _In_opt_ PPHYSICAL_ADDRESS pPAddr
     UINT pages = BYTES_TO_PAGES(size);
     UINT sglsize = sizeof(SCATTER_GATHER_LIST) + (sizeof(SCATTER_GATHER_ELEMENT) * pages);
     size = pages * PAGE_SIZE;
+
+    if (((pPAddr == NULL) || pPAddr->QuadPart == 0LL) && VioGpuRdmaOpen())
+    {
+        /* Protected VM: the whole segment is one contiguous pool region, attached to the
+         * device as a single backing entry. No MDL: the pool is an I/O-space mapping. */
+        m_pVAddr = VioGpuRdmaRegionAlloc(size, &m_RdmaPa);
+        if (!m_pVAddr)
+        {
+            DbgPrintEx(DPFLTR_IHVVIDEO_ID, DPFLTR_ERROR_LEVEL, "viogpu rdma: no pool region for %u bytes\n", size);
+            return FALSE;
+        }
+        m_bRdma = TRUE;
+        m_bSystemMemory = TRUE;
+        m_pSGList = reinterpret_cast<PSCATTER_GATHER_LIST>(new (NonPagedPoolNx) BYTE[sglsize]);
+        if (!m_pSGList)
+        {
+            VioGpuRdmaRegionFree(m_pVAddr);
+            m_pVAddr = NULL;
+            m_bRdma = FALSE;
+            return FALSE;
+        }
+        RtlZeroMemory(m_pSGList, sglsize);
+        m_pSGList->NumberOfElements = 1;
+        m_pSGList->Elements[0].Address = m_RdmaPa;
+        m_pSGList->Elements[0].Length = size;
+        m_Size = size;
+        return TRUE;
+    }
 
     if ((pPAddr == NULL) || pPAddr->QuadPart == 0LL)
     {
@@ -957,6 +1067,10 @@ PHYSICAL_ADDRESS VioGpuMemSegment::GetPhysicalAddress(void)
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
     PHYSICAL_ADDRESS pa = {0};
+    if (m_bRdma)
+    {
+        return m_RdmaPa;
+    }
     if (m_pVAddr && MmIsAddressValid(m_pVAddr))
     {
         pa = MmGetPhysicalAddress(m_pVAddr);
@@ -972,6 +1086,18 @@ void VioGpuMemSegment::Close(void)
     PAGED_CODE();
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
+
+    if (m_bRdma)
+    {
+        VioGpuRdmaRegionFree(m_pVAddr);
+        m_pVAddr = NULL;
+        m_bRdma = FALSE;
+        m_bSystemMemory = FALSE;
+        delete[] reinterpret_cast<PBYTE>(m_pSGList);
+        m_pSGList = NULL;
+        m_Size = 0;
+        return;
+    }
 
     if (m_pMdl)
     {
@@ -1081,7 +1207,16 @@ UINT CrsrQueue::QueueCursor(PGPU_VBUFFER buf)
     UINT ret = 0;
 
     ASSERT(buf->size <= PAGE_SIZE);
-    if (BuildSGElement(&sg[outcnt], (PVOID)buf->buf, buf->size))
+    if (VioGpuRdmaActive())
+    {
+        UINT o = 0, in = 0;
+        if (!StageInRdmaSlot(buf, sg, &o, &in))
+        {
+            return res;
+        }
+        outcnt = (int)o;
+    }
+    else if (BuildSGElement(&sg[outcnt], (PVOID)buf->buf, buf->size))
     {
         outcnt++;
     }
@@ -1105,6 +1240,7 @@ PGPU_VBUFFER CrsrQueue::DequeueCursor(_Out_ UINT *len)
     Lock(&SavedIrql);
     buf = (PGPU_VBUFFER)GetBuf(len);
     Unlock(SavedIrql);
+    UnstageRdmaSlot(buf);
     if (buf == NULL)
     {
         *len = 0;

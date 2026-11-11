@@ -57,6 +57,8 @@ typedef struct virtio_gpu_vbuffer
     void *complete_ctx;
 
     bool auto_release;
+    /* protected VM: the rdmapool page this buffer is staged in while queued */
+    void *dma_slot;
 } GPU_VBUFFER, *PGPU_VBUFFER;
 // #pragma pack()
 
@@ -112,6 +114,8 @@ class VioGpuMemSegment
   private:
     BOOLEAN m_bSystemMemory;
     BOOLEAN m_bMapped;
+    BOOLEAN m_bRdma;
+    PHYSICAL_ADDRESS m_RdmaPa;
     PSCATTER_GATHER_LIST m_pSGList;
     PVOID m_pVAddr;
     PMDL m_pMdl;

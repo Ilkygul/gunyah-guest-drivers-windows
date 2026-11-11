@@ -23,6 +23,7 @@
  *
  **********************************************************************/
 #include "viogpu.h"
+#include "viogpu_rdma.h"
 #include "..\viogpudo\viogpudo.h"
 #if !DBG
 #include "viogpu_pci.tmh"
@@ -107,6 +108,12 @@ void *mem_alloc_contiguous_pages(void *context, size_t size)
 
     UNREFERENCED_PARAMETER(context);
 
+    if (VioGpuRdmaActive())
+    {
+        /* protected VM: the vrings must be in the restricted DMA pool */
+        return VioGpuRdmaRingAlloc(size);
+    }
+
     HighestAcceptable.QuadPart = 0xFFFFFFFFFF;
     ptr = MmAllocateContiguousMemory(size, HighestAcceptable);
     if (ptr)
@@ -123,6 +130,11 @@ void *mem_alloc_contiguous_pages(void *context, size_t size)
 void mem_free_contiguous_pages(void *context, void *virt)
 {
     UNREFERENCED_PARAMETER(context);
+    PHYSICAL_ADDRESS rpa;
+    if (VioGpuRdmaVaToPa(virt, &rpa))
+    {
+        return; /* ring area is rewound on the next adapter init */
+    }
     if (virt)
     {
         MmFreeContiguousMemory(virt);
@@ -133,7 +145,12 @@ ULONGLONG mem_get_physical_address(void *context, void *virt)
 {
     UNREFERENCED_PARAMETER(context);
 
-    PHYSICAL_ADDRESS pa = MmGetPhysicalAddress(virt);
+    PHYSICAL_ADDRESS pa;
+    if (VioGpuRdmaVaToPa(virt, &pa))
+    {
+        return pa.QuadPart;
+    }
+    pa = MmGetPhysicalAddress(virt);
     return pa.QuadPart;
 }
 

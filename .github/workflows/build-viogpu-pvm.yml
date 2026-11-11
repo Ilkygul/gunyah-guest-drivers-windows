@@ -1,0 +1,66 @@
+name: Build viogpudo (pVM, ARM64, test-signed)
+
+# Experimental: viogpudo with its device-visible memory in the Gunyah restricted DMA pool.
+on:
+  workflow_dispatch:
+  push:
+    branches: [viogpu-pvm]
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+
+      - name: Build VirtioLib + viogpudo (ARM64)
+        shell: pwsh
+        run: |
+          $common = @('/m','/p:ApiValidator_Enable=false','/p:SpectreMitigation=false','/p:SignMode=Off','/p:_BUILD_MINOR_VERSION_=58100')
+          msbuild VirtIO/VirtioLib.vcxproj /p:Configuration="Win11 Release" /p:Platform=ARM64 @common
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          msbuild viogpu/viogpudo/viogpudo.vcxproj /p:Configuration="Win11 Release" /p:Platform=ARM64 @common
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Sign + package
+        shell: pwsh
+        run: |
+          $kitbin = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\10.*" -Directory | Sort Name -Desc | Select -First 1).FullName
+          $signtool = Join-Path $kitbin 'x64\signtool.exe'
+          $inf2cat  = Join-Path $kitbin 'x86\inf2cat.exe'
+          $stampinf = Join-Path $kitbin 'x86\stampinf.exe'
+          $dest = 'out\viogpudo'
+          New-Item -ItemType Directory -Force $dest | Out-Null
+          Get-ChildItem viogpu -Recurse -Include viogpudo.sys,viogpudo.inf,viogpudo.inx -File | Select FullName, Length, LastWriteTime | Out-String | Write-Host
+          $sys = Get-ChildItem viogpu -Recurse -Filter viogpudo.sys -File | Where-Object { $_.FullName -match 'ARM64' } | Sort LastWriteTime -Desc | Select -First 1
+          if (-not $sys) { Write-Host '::error::viogpudo.sys not found'; exit 1 }
+          Copy-Item $sys.FullName $dest
+          $inf = Get-ChildItem viogpu -Recurse -Filter viogpudo.inf -File | Where-Object { $_.FullName -match 'ARM64' } | Sort LastWriteTime -Desc | Select -First 1
+          if (-not $inf) { $inf = Get-ChildItem viogpu -Recurse -Filter viogpudo.inf -File | Sort LastWriteTime -Desc | Select -First 1 }
+          if (-not $inf) { $inf = Get-ChildItem viogpu/viogpudo -Filter viogpudo.inx -File | Select -First 1 }
+          Copy-Item $inf.FullName "$dest\viogpudo.inf"
+          $infPath = "$dest\viogpudo.inf"
+          $map = [ordered]@{
+            '_INX_SUBSYS_VENDOR_ID'='1AF4'; 'INX_PLATFORM_DRIVERS_DIR'='13'; 'INX_BASE_ON_SYSTEM_ROOT_DRIVER_DIR'='%13%';
+            'INX_COMPANY'='Red Hat, Inc.'; 'INX_PREFIX_VENDOR'='Red Hat '; 'INX_PREFIX_VIRTIO'=''; 'INX_PREFIX_QEMU'='';
+            'INX_COPYRIGHT_1'='Copyright (c) Red Hat Inc.'; 'INX_COPYRIGHT_2'='' }
+          $raw = Get-Content $infPath -Raw
+          foreach ($k in $map.Keys) { $raw = $raw.Replace($k, [string]$map[$k]) }
+          Set-Content -LiteralPath $infPath -Value $raw -NoNewline -Encoding utf8
+          if ((Get-Content $infPath -Raw) -match '\$ARCH\$|\$KMDFVERSION\$') { & $stampinf -f $infPath -a ARM64 -d "*" -v "*" }
+          if ((Get-Content $infPath -Raw) -match 'INX_[A-Z_]+') { Write-Host '::error::INX token left in inf'; Get-Content $infPath | Write-Host; exit 1 }
+          $pw = ConvertTo-SecureString 'viogpu' -AsPlainText -Force
+          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject 'CN=viogpu pVM Test' -CertStoreLocation Cert:\CurrentUser\My -KeyExportPolicy Exportable -KeyUsage DigitalSignature -NotAfter (Get-Date).AddYears(10)
+          Export-PfxCertificate -Cert $cert -FilePath out\t.pfx -Password $pw | Out-Null
+          Export-Certificate -Cert $cert -FilePath out\viogpu_Test.cer | Out-Null
+          & $signtool sign /fd SHA256 /f out\t.pfx /p viogpu "$dest\viogpudo.sys"
+          & $inf2cat /driver:$dest /os:Server10_ARM64
+          Get-ChildItem "$dest\*.cat" | ForEach-Object { & $signtool sign /fd SHA256 /f out\t.pfx /p viogpu $_.FullName }
+          Remove-Item out\t.pfx -Force
+          Get-ChildItem -Recurse out -File | Select FullName, Length | Out-String | Write-Host
+          Get-Content $infPath | Write-Host
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: viogpudo-pvm-arm64
+          path: out/**

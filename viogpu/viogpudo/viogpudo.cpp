@@ -30,6 +30,7 @@
 #include "helper.h"
 #include "driver.h"
 #include "viogpudo.h"
+#include "viogpu_rdma.h"
 #include "baseobj.h"
 #include "bitops.h"
 #include "viogpum.h"
@@ -2383,6 +2384,7 @@ NTSTATUS VioGpuAdapter::VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION *pDispInfo)
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
     UNREFERENCED_PARAMETER(pDispInfo);
+    VioGpuRdmaReset(); /* protected VM: vrings and command slots from the restricted DMA pool */
     if (m_pVioGpuDod->IsHardwareInit())
     {
         DbgPrint(TRACE_LEVEL_FATAL, ("Already Initialized\n"));
