@@ -153,7 +153,7 @@
     <ClCompile>
       <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);$(DDK_INC_PATH);$(SDK_INC_PATH);..\common;..\shared;..\..\VirtIO;..\viogpudo\;..\..\rdmapool;</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>VIOGPU_DOD=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <WppEnabled>true</WppEnabled>
+      <WppEnabled>false</WppEnabled>
       <WppScanConfigurationData>..\viogpudo\trace.h</WppScanConfigurationData>
       <WppModuleName />
       <WppMinimalRebuildFromTracking>false</WppMinimalRebuildFromTracking>
@@ -171,7 +171,7 @@
     <ClCompile>
       <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);$(DDK_INC_PATH);$(SDK_INC_PATH);..\common;..\shared;..\..\VirtIO;..\viogpudo\;..\..\rdmapool;</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>VIOGPU_DOD=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <WppEnabled>true</WppEnabled>
+      <WppEnabled>false</WppEnabled>
       <WppScanConfigurationData>..\viogpudo\trace.h</WppScanConfigurationData>
       <WppModuleName>
       </WppModuleName>
@@ -189,7 +189,7 @@
     <ClCompile>
       <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);$(DDK_INC_PATH);$(SDK_INC_PATH);..\common;..\shared;..\..\VirtIO;..\viogpudo\;..\..\rdmapool;</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>VIOGPU_DOD=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <WppEnabled>true</WppEnabled>
+      <WppEnabled>false</WppEnabled>
       <WppScanConfigurationData>trace.h</WppScanConfigurationData>
     </ClCompile>
     <PostBuildEvent />
@@ -202,7 +202,7 @@
     <ClCompile>
       <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);$(DDK_INC_PATH);$(SDK_INC_PATH);..\common;..\shared;..\..\VirtIO;..\viogpudo\;..\..\rdmapool;</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>VIOGPU_DOD=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <WppEnabled>true</WppEnabled>
+      <WppEnabled>false</WppEnabled>
       <WppScanConfigurationData>trace.h</WppScanConfigurationData>
     </ClCompile>
     <PostBuildEvent />
@@ -223,7 +223,7 @@
     <ClCompile>
       <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);$(DDK_INC_PATH);$(SDK_INC_PATH);..\common;..\shared;..\..\VirtIO;..\viogpudo\;..\..\rdmapool;</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>VIOGPU_DOD=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <WppEnabled>true</WppEnabled>
+      <WppEnabled>false</WppEnabled>
       <WppScanConfigurationData>trace.h</WppScanConfigurationData>
     </ClCompile>
     <Link>
@@ -237,7 +237,7 @@
     <ClCompile>
       <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories);$(DDK_INC_PATH);$(SDK_INC_PATH);..\common;..\shared;..\..\VirtIO;..\viogpudo\;..\..\rdmapool;</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>VIOGPU_DOD=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <WppEnabled>true</WppEnabled>
+      <WppEnabled>false</WppEnabled>
       <WppScanConfigurationData>trace.h</WppScanConfigurationData>
     </ClCompile>
     <Link>

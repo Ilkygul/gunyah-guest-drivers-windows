@@ -30,7 +30,7 @@
 #include "viogpu_queue.h"
 #include "baseobj.h"
 #include "viogpu_rdma.h"
-#if !DBG
+#if !DBG && !defined(VIOGPU_REGLOG)
 #include "viogpu_queue.tmh"
 #endif
 
@@ -52,12 +52,11 @@ static BOOLEAN StageInRdmaSlot(PGPU_VBUFFER buf, VirtIOBufferDescriptor *sg, UIN
     if ((ULONG)buf->size > VIOGPU_RDMA_SLOT_CMD_MAX || buf->data_size > VIOGPU_RDMA_SLOT_DATA_MAX ||
         (ULONG)buf->resp_size > VIOGPU_RDMA_SLOT_RESP_MAX)
     {
-        DbgPrintEx(DPFLTR_IHVVIDEO_ID,
-                   DPFLTR_ERROR_LEVEL,
-                   "viogpu rdma: buffer too big for a slot (%d/%u/%d)\n",
-                   buf->size,
-                   buf->data_size,
-                   buf->resp_size);
+        DbgPrint(TRACE_LEVEL_ERROR,
+                 ("rdma: buffer too big for a slot (%d/%u/%d)\n",
+                  buf->size,
+                  buf->data_size,
+                  buf->resp_size));
         return FALSE;
     }
     PUCHAR slot = (PUCHAR)VioGpuRdmaSlotAlloc();
@@ -966,7 +965,7 @@ BOOLEAN VioGpuMemSegment::Init(_In_ UINT size, _In_opt_ PPHYSICAL_ADDRESS pPAddr
         m_pVAddr = VioGpuRdmaRegionAlloc(size, &m_RdmaPa);
         if (!m_pVAddr)
         {
-            DbgPrintEx(DPFLTR_IHVVIDEO_ID, DPFLTR_ERROR_LEVEL, "viogpu rdma: no pool region for %u bytes\n", size);
+            DbgPrint(TRACE_LEVEL_ERROR, ("rdma: no pool region for %u bytes\n", size));
             return FALSE;
         }
         m_bRdma = TRUE;

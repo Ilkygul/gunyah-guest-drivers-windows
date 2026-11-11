@@ -1,7 +1,7 @@
 #include "bitops.h"
 #include "viogpu.h"
 
-#if !DBG
+#if !DBG && !defined(VIOGPU_REGLOG)
 #include "bitops.tmh"
 #endif
 

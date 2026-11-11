@@ -32,7 +32,7 @@
 #include "helper.h"
 #include "baseobj.h"
 
-#if !DBG
+#if !DBG && !defined(VIOGPU_REGLOG)
 #include "driver.tmh"
 #endif
 

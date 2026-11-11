@@ -36,7 +36,7 @@
 #include "viogpum.h"
 #include "edid.h"
 
-#if !DBG
+#if !DBG && !defined(VIOGPU_REGLOG)
 #include "viogpudo.tmh"
 #endif
 

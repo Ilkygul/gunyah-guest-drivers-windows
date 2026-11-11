@@ -25,7 +25,7 @@
 #include "viogpu.h"
 #include "viogpu_rdma.h"
 #include "..\viogpudo\viogpudo.h"
-#if !DBG
+#if !DBG && !defined(VIOGPU_REGLOG)
 #include "viogpu_pci.tmh"
 #endif
 

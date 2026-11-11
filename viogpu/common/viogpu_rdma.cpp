@@ -9,13 +9,79 @@
 extern "C"
 {
 #include "rdmaclient.h"
+#include <ntstrsafe.h>
+}
+
+/* ---- pVM test build: a log in the registry (no debugger, no WPP decoding on the guest) ---- */
+#define VIOGPU_REGLOG_BYTES (48 * 1024)
+static char g_Log[VIOGPU_REGLOG_BYTES];
+static char g_LogFlush[VIOGPU_REGLOG_BYTES];
+static ULONG g_LogLen = 0;
+static KSPIN_LOCK g_LogLock;
+static LONG g_LogLockInit = 0;
+
+void VioGpuRegLog(const char *fmt, ...)
+{
+    char line[320];
+    va_list ap;
+    if (KeGetCurrentIrql() > DISPATCH_LEVEL)
+    {
+        return;
+    }
+    ULONG64 ms = KeQueryInterruptTime() / 10000;
+    size_t n = 0;
+    RtlStringCbPrintfA(line, sizeof(line), "%I64u ", ms);
+    RtlStringCbLengthA(line, sizeof(line), &n);
+    va_start(ap, fmt);
+    RtlStringCbVPrintfA(line + n, sizeof(line) - n, fmt, ap);
+    va_end(ap);
+    RtlStringCbLengthA(line, sizeof(line), &n);
+    if (n == 0 || line[n - 1] != '\n')
+    {
+        RtlStringCbCatA(line, sizeof(line), "\n");
+        RtlStringCbLengthA(line, sizeof(line), &n);
+    }
+    DbgPrintEx(DPFLTR_IHVVIDEO_ID, DPFLTR_ERROR_LEVEL, "viogpu: %s", line);
+
+    if (InterlockedCompareExchange(&g_LogLockInit, 1, 0) == 0)
+    {
+        KeInitializeSpinLock(&g_LogLock);
+        InterlockedExchange(&g_LogLockInit, 2);
+    }
+    while (g_LogLockInit != 2)
+    {
+        YieldProcessor();
+    }
+    KIRQL irql;
+    KeAcquireSpinLock(&g_LogLock, &irql);
+    if (g_LogLen + n > VIOGPU_REGLOG_BYTES)
+    {
+        /* keep the newest half */
+        ULONG keep = VIOGPU_REGLOG_BYTES / 2;
+        RtlMoveMemory(g_Log, g_Log + g_LogLen - keep, keep);
+        g_LogLen = keep;
+    }
+    RtlCopyMemory(g_Log + g_LogLen, line, n);
+    g_LogLen += (ULONG)n;
+    ULONG len = g_LogLen;
+    BOOLEAN flush = (irql == PASSIVE_LEVEL);
+    if (flush)
+    {
+        RtlCopyMemory(g_LogFlush, g_Log, len);
+    }
+    KeReleaseSpinLock(&g_LogLock, irql);
+    if (flush)
+    {
+        RtlWriteRegistryValue(RTL_REGISTRY_SERVICES, L"VioGpuDod", L"DbgLog", REG_BINARY, g_LogFlush, len);
+    }
 }
 
 #define VIOGPU_RDMA_RING_PAGES 64  /* two vrings with room to spare */
 #define VIOGPU_RDMA_SLOT_PAGES 512 /* in-flight commands; 2 MB */
 #define VIOGPU_RDMA_MAX_REGIONS 16
 
-#define RDMA_LOG(...) DbgPrintEx(DPFLTR_IHVVIDEO_ID, DPFLTR_ERROR_LEVEL, "viogpu rdma: " __VA_ARGS__)
+void VioGpuRegLog(const char *fmt, ...);
+#define RDMA_LOG(...) VioGpuRegLog("rdma: " __VA_ARGS__)
 
 typedef struct _VIOGPU_RDMA_REGION
 {

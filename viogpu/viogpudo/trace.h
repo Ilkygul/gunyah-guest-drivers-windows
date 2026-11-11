@@ -1,4 +1,5 @@
 #pragma once
+#define VIOGPU_REGLOG 1
 #include "kdebugprint.h"
 
 //#define DBG 1
@@ -32,6 +33,17 @@
     if (KD_DEBUGGER_ENABLED && !KD_DEBUGGER_NOT_PRESENT && bBreakAlways) DbgBreakPoint();
 
 #define WPP_INIT_TRACING(driver, regpath)  InitializeDebugPrints(driver, regpath);
+#define WPP_CLEANUP(driver)
+#elif defined(VIOGPU_REGLOG)
+/* pVM test build: no WPP; warnings and errors go to HKLM\SYSTEM\CurrentControlSet\Services\VioGpuDod\DbgLog */
+void VioGpuRegLog(const char *fmt, ...);
+#define DbgPrint(Level, MSG)                                                                                           \
+    {                                                                                                                  \
+        if ((Level) <= TRACE_LEVEL_WARNING)                                                                            \
+            VioGpuRegLog MSG;                                                                                          \
+    }
+#define VioGpuDbgBreak() {}
+#define WPP_INIT_TRACING(driver, regpath)
 #define WPP_CLEANUP(driver)
 #else
 //#define DbgPrint(level, line) {};
