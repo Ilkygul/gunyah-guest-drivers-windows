@@ -43,30 +43,48 @@ void GpuAdapter::UpdateDisplayConfig(void)
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
-    UINT32 filter = QDC_ALL_PATHS;
     ClearDisplayConfig();
 
-    if (FAILED(HRESULT_FROM_WIN32(::GetDisplayConfigBufferSizes(filter,
-                                                                &m_PathArrayElements,
-                                                                &m_ModeInfoArrayElements))))
+    /* All paths first (the upstream behaviour), active paths if that fails: with a display-less
+     * Basic Display adapter next to ours, QDC_ALL_PATHS failed after every boot and the zeroed
+     * arrays made every resize land on an inactive path. ERROR_INSUFFICIENT_BUFFER means the
+     * topology changed between the two calls: ask for the sizes again. */
+    LONG rc = ERROR_GEN_FAILURE;
+    const UINT32 filters[] = {QDC_ALL_PATHS, QDC_ONLY_ACTIVE_PATHS};
+    for (UINT32 filter : filters)
     {
-        PrintMessage(L"GetDisplayConfigBufferSizes faled\n");
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            ClearDisplayConfig();
+            rc = ::GetDisplayConfigBufferSizes(filter, &m_PathArrayElements, &m_ModeInfoArrayElements);
+            if (rc != ERROR_SUCCESS)
+            {
+                break;
+            }
+            m_pDisplayPathInfo = new DISPLAYCONFIG_PATH_INFO[m_PathArrayElements];
+            m_pDisplayModeInfo = new DISPLAYCONFIG_MODE_INFO[m_ModeInfoArrayElements];
+            ZeroMemory(m_pDisplayPathInfo, sizeof(DISPLAYCONFIG_PATH_INFO) * m_PathArrayElements);
+            ZeroMemory(m_pDisplayModeInfo, sizeof(DISPLAYCONFIG_MODE_INFO) * m_ModeInfoArrayElements);
+            rc = ::QueryDisplayConfig(filter, &m_PathArrayElements, m_pDisplayPathInfo, &m_ModeInfoArrayElements,
+                                      m_pDisplayModeInfo, NULL);
+            if (rc != ERROR_INSUFFICIENT_BUFFER)
+            {
+                break;
+            }
+        }
+        PrintMessage(L"%ws QueryDisplayConfig(0x%x) rc=%ld paths=%u modes=%u\n", __FUNCTIONW__, filter, rc,
+                     m_PathArrayElements, m_ModeInfoArrayElements);
+        if (rc == ERROR_SUCCESS)
+        {
+            break;
+        }
+    }
+    if (rc != ERROR_SUCCESS)
+    {
+        ClearDisplayConfig();
         return;
     }
-
-    m_pDisplayPathInfo = new DISPLAYCONFIG_PATH_INFO[m_PathArrayElements];
-    m_pDisplayModeInfo = new DISPLAYCONFIG_MODE_INFO[m_ModeInfoArrayElements];
-    ZeroMemory(m_pDisplayPathInfo, sizeof(DISPLAYCONFIG_PATH_INFO) * m_PathArrayElements);
-    ZeroMemory(m_pDisplayModeInfo, sizeof(DISPLAYCONFIG_MODE_INFO) * m_ModeInfoArrayElements);
-
-    if (SUCCEEDED(HRESULT_FROM_WIN32(::QueryDisplayConfig(filter,
-                                                          &m_PathArrayElements,
-                                                          m_pDisplayPathInfo,
-                                                          &m_ModeInfoArrayElements,
-                                                          m_pDisplayModeInfo,
-                                                          NULL))))
     {
-
         /* QDC_ALL_PATHS also lists the inactive paths, with the same source (GDI) name: take the
          * active path of our source, and the first named one only when none is active. */
         int firstMatch = -1;
@@ -78,7 +96,11 @@ void GpuAdapter::UpdateDisplayConfig(void)
             SourceName.header.adapterId = m_pDisplayPathInfo[PathIdx].sourceInfo.adapterId;
             SourceName.header.id = m_pDisplayPathInfo[PathIdx].sourceInfo.id;
 
-            if (SUCCEEDED(HRESULT_FROM_WIN32(::DisplayConfigGetDeviceInfo(&SourceName.header))))
+            LONG gi = ::DisplayConfigGetDeviceInfo(&SourceName.header);
+            PrintMessage(L"%ws path %u src %u gdi=%ws flags=0x%x want=%ws rc=%ld\n", __FUNCTIONW__, PathIdx,
+                         m_pDisplayPathInfo[PathIdx].sourceInfo.id, gi == ERROR_SUCCESS ? SourceName.viewGdiDeviceName : L"?",
+                         m_pDisplayPathInfo[PathIdx].flags, m_DeviceName.c_str(), gi);
+            if (SUCCEEDED(HRESULT_FROM_WIN32(gi)))
             {
                 if (wcscmp(m_DeviceName.c_str(), SourceName.viewGdiDeviceName) == 0)
                 {
@@ -251,6 +273,11 @@ bool GpuAdapter::SetResolution(PVIOGPU_DISP_MODE mode)
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
+    if (m_pDisplayPathInfo == NULL || m_Index >= GetNumbersOfPathArrayElements())
+    {
+        PrintMessage(L"%ws no display path\n", __FUNCTIONW__);
+        return false;
+    }
     int ix = m_pDisplayPathInfo[m_Index].sourceInfo.modeInfoIdx;
     PrintMessage(L"%ws m_Index %d %d (%dx%d)\n", __FUNCTIONW__, m_Index, ix, mode->XResolution, mode->YResolution);
     m_pDisplayModeInfo[ix].sourceMode.width = mode->XResolution;
