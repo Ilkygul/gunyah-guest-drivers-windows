@@ -2339,6 +2339,10 @@ VioGpuAdapter::~VioGpuAdapter(void)
     DestroyFrameBufferObj(TRUE, FALSE);
     VioGpuAdapterClose();
     HWClose();
+    /* protected VM: the segments' pool regions first, then everything else rdmapool lent us */
+    m_FrameSegment.Close();
+    m_CursorSegment.Close();
+    VioGpuRdmaShutdown();
     delete[] m_ModeInfo;
     m_ModeInfo = NULL;
     m_CurrentModeIndex = 0;

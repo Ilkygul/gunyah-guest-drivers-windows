@@ -46,3 +46,5 @@ void VioGpuRdmaSlotFree(PVOID slot);
 /* A contiguous pool region (PASSIVE_LEVEL), for the frame and cursor segments. */
 PVOID VioGpuRdmaRegionAlloc(SIZE_T bytes, PHYSICAL_ADDRESS *pa);
 void VioGpuRdmaRegionFree(PVOID va);
+/* Driver teardown (PASSIVE_LEVEL): give every region back to the pool; the next load starts clean. */
+void VioGpuRdmaShutdown(void);

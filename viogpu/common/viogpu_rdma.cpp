@@ -277,3 +277,27 @@ void VioGpuRdmaRegionFree(PVOID va)
         RdmaClientFreeRegion(&g_Client, va, (ULONG)(bytes / PAGE_SIZE));
     }
 }
+
+void VioGpuRdmaShutdown(void)
+{
+    if (!g_Tried)
+    {
+        return;
+    }
+    if (g_Client.PoolDeviceObject != NULL)
+    {
+        for (int i = 0; i < VIOGPU_RDMA_MAX_REGIONS; i++)
+        {
+            if (g_Regions[i].Va != NULL)
+            {
+                RdmaClientFreeRegion(&g_Client, g_Regions[i].Va, (ULONG)(g_Regions[i].Bytes / PAGE_SIZE));
+                g_Regions[i].Va = NULL;
+            }
+        }
+        RdmaClientClose(&g_Client);
+    }
+    g_RingVa = NULL;
+    g_SlotVa = NULL;
+    g_Open = FALSE;
+    g_Tried = FALSE;
+}
