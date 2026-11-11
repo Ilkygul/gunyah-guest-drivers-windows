@@ -262,7 +262,7 @@
     <ClCompile Include="..\common\viogpu_pci.cpp" />
     <ClCompile Include="..\common\viogpu_queue.cpp" />
     <ClCompile Include="..\common\viogpu_rdma.cpp" />
-    <ClCompile Include="..\..\rdmapool\rdmaclient.c" />
+    <ClCompile Include="..\..\rdmapool\rdmaclient.c"><WppEnabled>false</WppEnabled></ClCompile>
     <ClCompile Include="driver.cpp" />
     <ClCompile Include="viogpudo.cpp" />
     <ClCompile Include="..\common\baseobj.cpp" />
