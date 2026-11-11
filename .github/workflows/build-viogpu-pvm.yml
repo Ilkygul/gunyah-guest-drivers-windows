@@ -16,7 +16,8 @@ jobs:
       - name: Build VirtioLib + viogpudo (ARM64)
         shell: pwsh
         run: |
-          $common = @('/m','/p:ApiValidator_Enable=false','/p:SpectreMitigation=false','/p:SignMode=Off','/p:EnableInfVerif=false','/p:RunInfVerif=false','/p:_BUILD_MINOR_VERSION_=58100')
+          Select-String -Path "C:\Program Files (x86)\Windows Kits\10\build\*\WindowsDriver.common.targets" -Pattern "InfVerif" | Select -First 12 | ForEach-Object { Write-Host $_.Line.Trim() }
+          $common = @('/m','/p:ApiValidator_Enable=false','/p:SpectreMitigation=false','/p:SignMode=Off','/p:EnableInfVerif=false','/p:RunInfVerif=false','/p:InfVerif_Enable=false','/p:Feature_PackOne=false','/p:_BUILD_MINOR_VERSION_=58100')
           msbuild VirtIO/VirtioLib.vcxproj /p:Configuration="Win11 Release" /p:Platform=ARM64 @common
           if ($LASTEXITCODE -ne 0) { exit 1 }
           msbuild viogpu/viogpudo/viogpudo.vcxproj /p:Configuration="Win11 Release" /p:Platform=ARM64 @common
