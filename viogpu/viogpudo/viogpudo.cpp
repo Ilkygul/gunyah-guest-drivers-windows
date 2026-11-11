@@ -2311,6 +2311,7 @@ VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod)
     m_CustomModeIndex = 0;
     RtlZeroMemory(m_EDIDs, sizeof(m_EDIDs));
     m_bEDID = FALSE;
+    m_HostDpi = 0;
     m_ModeInfo = NULL;
     m_ModeCount = 0;
     m_Id = g_InstanceId++;
@@ -3110,6 +3111,15 @@ NTSTATUS VioGpuAdapter::Escape(_In_ CONST DXGKARG_ESCAPE *pEscape)
                 pVioGpuEscape->Resolution.YResolution = (USHORT)m_ModeInfo[m_CustomModeIndex].VisScreenHeight;
                 break;
             }
+        case VIOGPU_GET_HOST_DPI:
+            {
+                if (pVioGpuEscape->DataLength < sizeof(ULONG))
+                {
+                    return STATUS_INVALID_BUFFER_SIZE;
+                }
+                pVioGpuEscape->Id = m_HostDpi;
+                break;
+            }
         case VIOGPU_SET_CUSTOM_RESOLUTION:
             {
                 size = sizeof(VIOGPU_DISP_MODE);
@@ -3217,6 +3227,25 @@ void VioGpuAdapter::FixEdid(void)
         Sum += buf[i];
     }
     pdata->Checksum[0] = -Sum;
+}
+
+/* Density from the EDID's first detailed timing: horizontal pixels over horizontal image size. */
+void VioGpuAdapter::UpdateHostDpi(void)
+{
+    PAGED_CODE();
+
+    if (!m_bEDID)
+    {
+        return;
+    }
+    const BYTE *e = m_EDIDs;
+    ULONG hactive = e[56] | ((ULONG)(e[58] & 0xF0) << 4);
+    ULONG hmm = e[66] | ((ULONG)(e[68] & 0xF0) << 4);
+    if (hactive && hmm)
+    {
+        m_HostDpi = (hactive * 254 + hmm * 5) / (hmm * 10);
+    }
+    DbgPrint(TRACE_LEVEL_WARNING, ("%s %lu px over %lu mm -> %lu dpi\n", __FUNCTION__, hactive, hmm, m_HostDpi));
 }
 
 BOOLEAN VioGpuAdapter::GetEdids(void)
@@ -3536,6 +3565,7 @@ NTSTATUS VioGpuAdapter::BuildModeList(DXGK_DISPLAY_INFORMATION *pDispInfo)
     m_ModeCount = 0;
 
     m_ModeCount = ProcessEdid() + 1;
+    UpdateHostDpi();
 
     m_ModeInfo = new (PagedPool) VIDEO_MODE_INFORMATION[m_ModeCount];
     if (!m_ModeInfo)
@@ -3759,6 +3789,11 @@ void VioGpuAdapter::ConfigChanged(void)
     if (events_read & VIRTIO_GPU_EVENT_DISPLAY)
     {
         GetDisplayInfo();
+        if (virtio_is_feature_enabled(m_u64HostFeatures, VIRTIO_GPU_F_EDID))
+        {
+            GetEdids();
+            UpdateHostDpi();
+        }
         events_clear |= VIRTIO_GPU_EVENT_DISPLAY;
         virtio_set_config(&m_VioDev, FIELD_OFFSET(GPU_CONFIG, events_clear), &events_clear, sizeof(m_u32NumScanouts));
         //        UpdateChildStatus(FALSE);

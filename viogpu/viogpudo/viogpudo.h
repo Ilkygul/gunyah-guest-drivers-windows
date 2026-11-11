@@ -189,6 +189,8 @@ class VioGpuAdapter : IVioGpuPCI
     USHORT m_CustomModeIndex;
     ULONG m_Id;
     BYTE m_EDIDs[EDID_RAW_BLOCK_SIZE];
+    ULONG m_HostDpi;
+    void UpdateHostDpi(void);
     BOOLEAN m_bEDID;
 
     VirtIODevice m_VioDev;

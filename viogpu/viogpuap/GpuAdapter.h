@@ -79,6 +79,8 @@ class GpuAdapter
     bool GetCustomResolution(PVIOGPU_DISP_MODE mode);
     bool SetResolution(PVIOGPU_DISP_MODE mode);
     void SyncResolution(void);
+    ULONG GetHostDpi(void);
+    void ApplyHostScale(void);
     void UpdateDisplayConfig(void);
     void ClearDisplayConfig(void);
 

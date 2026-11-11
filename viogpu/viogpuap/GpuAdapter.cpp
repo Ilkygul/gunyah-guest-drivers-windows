@@ -248,6 +248,95 @@ bool GpuAdapter::SetResolution(PVIOGPU_DISP_MODE mode)
     return true;
 }
 
+ULONG GpuAdapter::GetHostDpi(void)
+{
+    if (!m_hAdapter)
+    {
+        return 0;
+    }
+    VIOGPU_ESCAPE data{0};
+    data.DataLength = sizeof(ULONG);
+    data.Type = VIOGPU_GET_HOST_DPI;
+    D3DKMT_ESCAPE escape = {0};
+    escape.hAdapter = m_hAdapter;
+    escape.pPrivateDriverData = &data;
+    escape.PrivateDriverDataSize = sizeof(data);
+    NTSTATUS status = D3DKMTEscape(&escape);
+    return NT_SUCCESS(status) ? data.Id : 0;
+}
+
+/* Windows' per-monitor scale, set the way the Settings app does: DisplayConfig{Get,Set}DeviceInfo
+ * with the undocumented types -3/-4, which take the scale as steps relative to the recommended one. */
+struct VIOGPU_DPI_SCALE_GET
+{
+    DISPLAYCONFIG_DEVICE_INFO_HEADER header;
+    INT32 minScaleRel;
+    INT32 curScaleRel;
+    INT32 maxScaleRel;
+};
+struct VIOGPU_DPI_SCALE_SET
+{
+    DISPLAYCONFIG_DEVICE_INFO_HEADER header;
+    INT32 scaleRel;
+};
+static const UINT32 g_ScaleSteps[] = {100, 125, 150, 175, 200, 225, 250, 300, 350, 400, 450, 500};
+#define SCALE_STEP_COUNT (sizeof(g_ScaleSteps) / sizeof(g_ScaleSteps[0]))
+
+/* DroidVM: the host sends its screen density (Android density x the guest UI preference) in the EDID.
+ * Scale = density / 160, Android's own rule, rounded to the nearest Windows step. */
+void GpuAdapter::ApplyHostScale(void)
+{
+    ULONG dpi = GetHostDpi();
+    if (dpi == 0 || m_Index >= GetNumbersOfPathArrayElements())
+    {
+        PrintMessage(L"%ws no host dpi (%lu)\n", __FUNCTIONW__, dpi);
+        return;
+    }
+    UINT32 want = (UINT32)(dpi * 100 / 160);
+    int wantIdx = 0;
+    for (int i = 0; i < (int)SCALE_STEP_COUNT; i++)
+    {
+        int d = (int)g_ScaleSteps[i] - (int)want, best = (int)g_ScaleSteps[wantIdx] - (int)want;
+        if ((d < 0 ? -d : d) < (best < 0 ? -best : best))
+        {
+            wantIdx = i;
+        }
+    }
+    VIOGPU_DPI_SCALE_GET get = {};
+    get.header.type = (DISPLAYCONFIG_DEVICE_INFO_TYPE)-3;
+    get.header.size = sizeof(get);
+    get.header.adapterId = m_pDisplayPathInfo[m_Index].sourceInfo.adapterId;
+    get.header.id = m_pDisplayPathInfo[m_Index].sourceInfo.id;
+    if (DisplayConfigGetDeviceInfo(&get.header) != ERROR_SUCCESS)
+    {
+        PrintMessage(L"%ws get dpi scale failed\n", __FUNCTIONW__);
+        return;
+    }
+    /* recommended step = -minScaleRel (min is always the 100% step) */
+    int recIdx = -get.minScaleRel;
+    int rel = wantIdx - recIdx;
+    if (rel < get.minScaleRel)
+        rel = get.minScaleRel;
+    if (rel > get.maxScaleRel)
+        rel = get.maxScaleRel;
+    PrintMessage(L"%ws dpi %lu -> %u%% (rel %d, now %d, range %d..%d)\n",
+                 __FUNCTIONW__, dpi, g_ScaleSteps[wantIdx], rel, get.curScaleRel, get.minScaleRel, get.maxScaleRel);
+    if (rel == get.curScaleRel)
+    {
+        return;
+    }
+    VIOGPU_DPI_SCALE_SET set = {};
+    set.header.type = (DISPLAYCONFIG_DEVICE_INFO_TYPE)-4;
+    set.header.size = sizeof(set);
+    set.header.adapterId = get.header.adapterId;
+    set.header.id = get.header.id;
+    set.scaleRel = rel;
+    if (DisplayConfigSetDeviceInfo(&set.header) != ERROR_SUCCESS)
+    {
+        PrintMessage(L"%ws set dpi scale failed\n", __FUNCTIONW__);
+    }
+}
+
 void GpuAdapter::SyncResolution(void)
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
@@ -259,6 +348,8 @@ void GpuAdapter::SyncResolution(void)
         VIOGPU_DISP_MODE current = {0};
         GetCurrentResolution(&current);
         SetResolution(&custom);
+        UpdateDisplayConfig(); /* paths and modes after the mode change */
+        ApplyHostScale();
     }
 }
 
