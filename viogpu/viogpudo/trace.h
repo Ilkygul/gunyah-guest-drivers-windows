@@ -36,7 +36,7 @@
 #define WPP_CLEANUP(driver)
 #elif defined(VIOGPU_REGLOG)
 /* pVM test build: no WPP; warnings and errors go to HKLM\SYSTEM\CurrentControlSet\Services\VioGpuDod\DbgLog */
-void VioGpuRegLog(const char *fmt, ...);
+extern "C" void VioGpuRegLog(const char *fmt, ...);
 __forceinline bool VioGpuRegLogOn(int level)
 {
     return level <= TRACE_LEVEL_WARNING;

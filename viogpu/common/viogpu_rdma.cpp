@@ -20,7 +20,7 @@ static ULONG g_LogLen = 0;
 static KSPIN_LOCK g_LogLock;
 static LONG g_LogLockInit = 0;
 
-void VioGpuRegLog(const char *fmt, ...)
+extern "C" void VioGpuRegLog(const char *fmt, ...)
 {
     char line[320];
     va_list ap;
@@ -80,7 +80,7 @@ void VioGpuRegLog(const char *fmt, ...)
 #define VIOGPU_RDMA_SLOT_PAGES 512 /* in-flight commands; 2 MB */
 #define VIOGPU_RDMA_MAX_REGIONS 16
 
-void VioGpuRegLog(const char *fmt, ...);
+extern "C" void VioGpuRegLog(const char *fmt, ...);
 #define RDMA_LOG(...) VioGpuRegLog("rdma: " __VA_ARGS__)
 
 typedef struct _VIOGPU_RDMA_REGION
