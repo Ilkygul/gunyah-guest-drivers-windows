@@ -34,6 +34,8 @@
 #include "viogpu_queue.tmh"
 #endif
 
+extern "C" void VioGpuRegLog(const char *fmt, ...);
+
 static BOOLEAN BuildSGElement(VirtIOBufferDescriptor *sg, PVOID buf, ULONG size)
 {
     if (size != 0 && MmIsAddressValid(buf))
@@ -593,15 +595,51 @@ UINT CtrlQueue::QueueBuffer(PGPU_VBUFFER buf)
 
     if (VioGpuRdmaActive())
     {
-        if (!StageInRdmaSlot(buf, sg, &outcnt, &incnt))
+        /* A full ring or all slots in flight used to drop the command on the floor: a lost
+         * TRANSFER_TO_HOST_2D leaves that rectangle stale on the host until something redraws it
+         * (black taskbar, half-old windows), and the slot leaked. At PASSIVE_LEVEL (every present)
+         * wait for the host to hand buffers back instead; the DPC reclaims them meanwhile. */
+        BOOLEAN canWait = (KeGetCurrentIrql() == PASSIVE_LEVEL);
+        LARGE_INTEGER delay;
+        delay.QuadPart = -10000LL; /* 1 ms */
+        for (UINT attempt = 0;; attempt++)
         {
-            return 0;
+            if (!StageInRdmaSlot(buf, sg, &outcnt, &incnt))
+            {
+                if (canWait && attempt < 500 && buf->size <= VIOGPU_RDMA_SLOT_CMD_MAX)
+                {
+                    KeDelayExecutionThread(KernelMode, FALSE, &delay);
+                    continue;
+                }
+                break;
+            }
+            Lock(&SavedIrql);
+            int added = AddBuf(&sg[0], outcnt, incnt, buf, NULL, 0);
+            Kick();
+            Unlock(SavedIrql);
+            if (added >= 0)
+            {
+                if (attempt >= 5)
+                {
+                    VioGpuRegLog("queue: ring was full, command went in after %u ms\n", attempt);
+                }
+                return (UINT)added;
+            }
+            VioGpuRdmaSlotFree(buf->dma_slot);
+            buf->dma_slot = NULL;
+            if (!canWait || attempt >= 500)
+            {
+                break;
+            }
+            KeDelayExecutionThread(KernelMode, FALSE, &delay);
         }
-        Lock(&SavedIrql);
-        ret = AddBuf(&sg[0], outcnt, incnt, buf, NULL, 0);
-        Kick();
-        Unlock(SavedIrql);
-        return ret;
+        VioGpuRegLog("queue: command %u dropped (ring or slots full)\n",
+                     (ULONG)buf->size >= sizeof(GPU_CTRL_HDR) ? ((PGPU_CTRL_HDR)buf->buf)->type : 0);
+        if (buf->auto_release)
+        {
+            ReleaseBuffer(buf);
+        }
+        return 0;
     }
 
     if (BuildSGElement(&sg[outcnt + incnt], (PVOID)buf->buf, buf->size))
