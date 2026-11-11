@@ -3693,17 +3693,17 @@ BOOLEAN VioGpuAdapter::InterruptRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface, 
         UNREFERENCED_PARAMETER(MessageNumber);
         UCHAR isrstat = virtio_read_isr_status(&m_VioDev);
 
-        switch (isrstat)
+        /* ISR status is a bit mask: bit 0 = used buffers, bit 1 = config change. A config change
+         * alone (2) used to fall through as "not ours" and the resize event was lost. */
+        if (isrstat & 1)
         {
-            case 1:
-                intReason = (ISR_REASON_DISPLAY | ISR_REASON_CURSOR);
-                break;
-            case 3:
-                intReason = ISR_REASON_CHANGE;
-                break;
-            default:
-                serviced = FALSE;
+            intReason |= (ISR_REASON_DISPLAY | ISR_REASON_CURSOR);
         }
+        if (isrstat & 2)
+        {
+            intReason |= ISR_REASON_CHANGE;
+        }
+        serviced = (intReason != 0);
     }
 
     if (serviced)
