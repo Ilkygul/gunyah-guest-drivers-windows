@@ -42,6 +42,8 @@ pvpanic.sys = 1,,
 [PVPanic.NT$ARCH$]
 %PVPanic.DeviceDesc% = PVPanic_Device, ACPI\QEMU0001
 %PVPanic.DeviceDesc% = PVPanic_Device, PCI\VEN_1B36&DEV_0011&SUBSYS_11001AF4&REV_01
+; crosvm (DroidVM) presents subsystem 00FF:00FF
+%PVPanic.DeviceDesc% = PVPanic_Device, PCI\VEN_1B36&DEV_0011&SUBSYS_00FF00FF&REV_01
 
 [PVPanic_Device.NT]
 CopyFiles = PVPanic_CopyFiles
